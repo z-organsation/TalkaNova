@@ -2,8 +2,8 @@ import threading
 import socket
 
 
-host = '192.168.53.118' 
-port = 5555
+host = '10.161.167.233' 
+port = 55555
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host,port))
