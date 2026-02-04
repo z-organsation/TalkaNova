@@ -1,0 +1,165 @@
+﻿
+> talkanova@0.1.0 lint
+> next lint
+
+node.exe : 
+Au caractère C:\Program 
+Files\nodejs\npm.ps1:29 : 
+3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+./src/app/components/Chat.
+tsx
+3:10  Warning: 
+'useRouter' is defined 
+but never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-eslint
+/no-unused-vars
+14:3  Warning: 
+'getMessages' is defined 
+but never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-eslint
+/no-unused-vars
+15:18  Warning: 
+'apiSendMessage' is 
+defined but never used. 
+Allowed unused vars must 
+match /^_/u.  @typescript-
+eslint/no-unused-vars
+91:6  Warning: React Hook 
+useEffect has a missing 
+dependency: 
+'loadInitialData'. Either 
+include it or remove the 
+dependency array.  react-h
+ooks/exhaustive-deps
+160:49  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+219:9  Warning: 
+'startP2P' is assigned a 
+value but never used. 
+Allowed unused vars must 
+match /^_/u.  @typescript-
+eslint/no-unused-vars
+221:13  Warning: 
+'session' is assigned a 
+value but never used. 
+Allowed unused vars must 
+match /^_/u.  @typescript-
+eslint/no-unused-vars
+224:17  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+236:17  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+359:25  Error: Optional 
+chain expressions can 
+return undefined by 
+design - using a non-null 
+assertion is unsafe and 
+wrong.  @typescript-eslint
+/no-non-null-asserted-opti
+onal-chain
+497:23  Error: Optional 
+chain expressions can 
+return undefined by 
+design - using a non-null 
+assertion is unsafe and 
+wrong.  @typescript-eslint
+/no-non-null-asserted-opti
+onal-chain
+
+./src/app/components/P2PCh
+at.tsx
+4:5  Warning: 
+'requestP2PSession' is 
+defined but never used. 
+Allowed unused vars must 
+match /^_/u.  @typescript-
+eslint/no-unused-vars
+5:5  Warning: 
+'acceptP2PSession' is 
+defined but never used. 
+Allowed unused vars must 
+match /^_/u.  @typescript-
+eslint/no-unused-vars
+6:5  Warning: 
+'exchangeP2PIP' is 
+defined but never used. 
+Allowed unused vars must 
+match /^_/u.  @typescript-
+eslint/no-unused-vars
+12:10  Warning: 
+'P2PSession' is defined 
+but never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-eslint
+/no-unused-vars
+23:46  Warning: 
+'myUserId' is defined but 
+never used. Allowed 
+unused args must match 
+/^_/u.  @typescript-eslint
+/no-unused-vars
+
+./src/app/help/page.tsx
+47:14  Warning: 'err' is 
+defined but never used.  @
+typescript-eslint/no-unuse
+d-vars
+
+./src/app/lib/api.ts
+225:86  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+227:18  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+290:43  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+295:51  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+
+./src/app/lib/cryptoServic
+e.ts
+49:22  Warning: 'e' is 
+defined but never used.  @
+typescript-eslint/no-unuse
+d-vars
+
+./src/app/lib/socketServic
+e.ts
+6:30  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+
+info  - Need to disable 
+some ESLint rules? Learn 
+more here: https://nextjs.
+org/docs/app/api-reference
+/config/eslint#disabling-r
+ules

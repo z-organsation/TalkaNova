@@ -1,0 +1,73 @@
+﻿
+> talkanova@0.1.0 lint
+> next lint
+
+node.exe : 
+Au caractère C:\Program 
+Files\nodejs\npm.ps1:29 : 
+3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+./src/app/components/Chat.
+tsx
+15:3  Warning: 
+'requestP2PSession' is 
+defined but never used. 
+Allowed unused vars must 
+match /^_/u.  @typescript-
+eslint/no-unused-vars
+231:17  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+232:7  Warning: Unused 
+eslint-disable directive 
+(no problems were 
+reported from '@typescript
+-eslint/no-explicit-any').
+
+./src/app/components/P2PCh
+at.tsx
+19:46  Warning: 
+'myUserId' is defined but 
+never used. Allowed 
+unused args must match 
+/^_/u.  @typescript-eslint
+/no-unused-vars
+
+./src/app/help/page.tsx
+47:14  Warning: 'err' is 
+defined but never used.  @
+typescript-eslint/no-unuse
+d-vars
+
+./src/app/lib/cryptoServic
+e.ts
+49:22  Warning: 'e' is 
+defined but never used.  @
+typescript-eslint/no-unuse
+d-vars
+
+./src/app/lib/socketServic
+e.ts
+6:30  Error: Unexpected 
+any. Specify a different 
+type.  @typescript-eslint/
+no-explicit-any
+
+info  - Need to disable 
+some ESLint rules? Learn 
+more here: https://nextjs.
+org/docs/app/api-reference
+/config/eslint#disabling-r
+ules
