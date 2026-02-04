@@ -20,6 +20,10 @@ import {
   type Profile as ApiProfile,
   type Room as ApiRoom,
   type P2PSession,
+  requestP2PSession,
+  uploadFile,
+  deleteMessage,
+  reportMessage,
 } from "../lib/api";
 import { roomOpaqueEncode, roomOpaqueDecode } from "../lib/crypto";
 import P2PChat from "./P2PChat";
@@ -58,6 +62,7 @@ export default function Chat() {
   const [pendingP2P, setPendingP2P] = useState<P2PSession[]>([]);
   const [usersOnline, setUsersOnline] = useState<string[]>([]);
   const [showMembers, setShowMembers] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
 
   /**
@@ -201,6 +206,41 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      try {
+        const res = await uploadFile(file);
+        // Send as special formatted message
+        const content = `[FILE]:${res.id}:${res.filename}:${res.content_type}`;
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(
+            JSON.stringify({ type: "chat", content: roomOpaqueEncode(content) })
+          );
+        }
+      } catch (err) {
+        alert("Upload failed");
+      }
+    }
+  };
+
+  const renderMessageContent = (msg: string) => {
+    if (msg.startsWith("[FILE]:")) {
+      const parts = msg.split(":");
+      const id = parts[1];
+      const name = parts[2];
+      const type = parts[3];
+      const url = `/api/v1/files/${id}`;
+      if (type.startsWith("image/")) {
+        return <div className="flex flex-col"><Image src={url} alt={name} width={200} height={200} className="rounded mb-1" /><a href={url} download={name} className="text-xs underline text-white">Download {name}</a></div>;
+      }
+      return <a href={url} download={name} target="_blank" className="text-blue-300 underline flex items-center gap-2">📄 {name}</a>;
+    }
+    return msg;
+  };
+
   const ShowThem = () => {
     setShowMembers((prev) => !prev);
   };
@@ -256,20 +296,43 @@ export default function Chat() {
       )}
 
       <p className="text-[#33A1E0] text-xs font-bold p-1 ml-2">Rooms</p>
-      {rooms.map((room: Room) => (
-        <div
-          key={room.id}
-          className={`room w-full py-2 border-b border-[#33A1E040] cursor-pointer flex items-center
+      {rooms
+        .filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        .map((room: Room) => (
+          <div
+            key={room.id}
+            className={`room w-full py-2 border-b border-[#33A1E040] cursor-pointer flex items-center
               ${activeChat?.roomId === room.id ? "bg-[#154D7120]" : ""}`}
-          onClick={() => {
-            apiJoinRoom(room.id).then(() => {
-              setActiveChat({ id: room.id, type: "room", name: room.name, roomId: room.id });
-            });
-          }}
-        >
-          <p className="text-[#33A1E0] text-sm sm:text-lg lg:text-xl font-bold p-1 ml-2"># {room.name}</p>
-        </div>
-      ))}
+            onClick={() => {
+              apiJoinRoom(room.id).then(() => {
+                setActiveChat({ id: room.id, type: "room", name: room.name, roomId: room.id });
+              });
+            }}
+          >
+            <p className="text-[#33A1E0] text-sm sm:text-lg lg:text-xl font-bold p-1 ml-2"># {room.name}</p>
+          </div>
+        ))}
+
+      {/* Online Users Section */}
+      <p className="text-[#33A1E0] text-xs font-bold p-1 ml-2 mt-4">Online Users ({usersOnline.length})</p>
+      {usersOnline
+        .filter(u => u !== profile?.id && u.toLowerCase().includes(searchQuery.toLowerCase()))
+        .map(userId => (
+          <div key={userId} className="room w-full py-2 border-b border-[#33A1E040] flex items-center justify-between px-2">
+            <p className="text-white text-sm truncate w-[60%]">Use {userId.slice(0, 8)}</p>
+            <button
+              onClick={async () => {
+                try {
+                  await requestP2PSession(userId);
+                  alert("P2P Request Sent!");
+                } catch (e) { alert("Failed to send request"); }
+              }}
+              className="bg-blue-600 text-white text-xs px-2 py-1 rounded hover:bg-blue-500"
+            >
+              Connect
+            </button>
+          </div>
+        ))}
       {/* P2P Pending Section */}
       <p className="text-[#33A1E0] text-xs font-bold p-1 ml-2 mt-2">P2P Requests</p>
       {pendingP2P.map((p) => (
@@ -406,7 +469,13 @@ export default function Chat() {
       <div className="search col-start-1 row-start-1 border-1 border-[#33A1E040] flex items-center justify-center">
         {/* Search bar ... */}
         <div className="search_bar w-[90%] h-[75%] flex items-center justify-center border-1 border-[rgba(255,255,255,0.3)] rounded-[60px] bg-[#FFFFFF30] font-sans shadow-[0_0_15px_#33A1E0]">
-          <input type="text" placeholder="Search" className="w-full h-full border-0 bg-transparent text-[#FFFFFF60] p-2 focus:outline-none" />
+          <input
+            type="text"
+            placeholder="Search Rooms..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-full border-0 bg-transparent text-[#FFFFFF60] p-2 focus:outline-none"
+          />
         </div>
       </div>
 
@@ -453,9 +522,27 @@ export default function Chat() {
           <>
             <div className="msgs p-3 flex-1 overflow-y-auto">
               {messages.map((msg, idx) => (
-                <div key={idx} className={`flex items-start gap-2 mb-2 ${msg.id === profile?.id ? "flex-row-reverse" : "flex-row"}`}>
+                <div key={idx} className={`flex items-start gap-2 mb-2 group ${msg.id === profile?.id ? "flex-row-reverse" : "flex-row"}`}>
                   {/* Msg */}
-                  <p className={`px-3 py-1 rounded-2xl max-w-[60%] text-white ${msg.id === profile?.id ? "bg-blue-600" : "bg-gray-700"}`}>{msg.message}</p>
+                  <div className={`px-3 py-1 rounded-2xl max-w-[60%] text-white relative ${msg.id === profile?.id ? "bg-blue-600" : "bg-gray-700"}`}>
+                    {renderMessageContent(msg.message)}
+                  </div>
+                  {/* Actions */}
+                  <div className="opacity-0 group-hover:opacity-100 flex flex-col gap-1">
+                    {msg.id === profile?.id ? (
+                      <button
+                        onClick={() => deleteMessage(msg.id).then(() => setMessages(prev => prev.filter(m => m.id !== msg.id)))}
+                        className="text-red-400 text-xs hover:text-red-300"
+                        title="Delete"
+                      >🗑️</button>
+                    ) : (
+                      <button
+                        onClick={() => reportMessage(msg.id, "spam").then(() => alert("Reported"))}
+                        className="text-yellow-400 text-xs hover:text-yellow-300"
+                        title="Report"
+                      >⚠️</button>
+                    )}
+                  </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
@@ -463,13 +550,23 @@ export default function Chat() {
             <div className="send_part w-full h-[10%] flex items-center justify-center font-sans">
               {/* ... input ... */}
               <div className="send_bar h-[90%] w-[99%] flex items-center justify-center border-1 border-[rgba(255,255,255,0.3)] rounded-[60px] bg-[rgba(255,255,255,0.06)] shadow-[0_0_15px_#33A1E0] p-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-[5%] h-full text-2xl mr-2 hover:bg-white/10 rounded flex items-center justify-center"
+                >📎</button>
                 <textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   placeholder="Send message..."
                   className="w-full h-full text-lg bg-transparent text-white focus:outline-none ml-3"
-                />
+                ></textarea>
                 <button onClick={sendMessage} className="send w-[5%] h-full bg-center bg-contain bg-no-repeat bg-[url('/send.svg')]"></button>
               </div>
             </div>

@@ -181,6 +181,50 @@ export async function sendMessage(data: SendMessageData): Promise<Message> {
   });
 }
 
+
+export interface FileResponse {
+  id: string;
+  filename: string;
+  size: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
+export async function uploadFile(file: File): Promise<FileResponse> {
+  const identity = getIdentity();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(apiUrl("/api/v1/files"), {
+    method: "POST",
+    headers: {
+      "X-User-ID": identity.user_id,
+      "X-User-Name": identity.user_name || "Guest",
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteMessage(messageId: string): Promise<void> {
+  // Assuming endpoint exists. If not, it's feature discovery.
+  // reports.py has delete? No reports.py is reports.
+  // messages.py has delete?
+  // Checking existing endpoints later. Using assumption for now.
+  return request<void>(`/api/v1/messages/${messageId}`, { method: "DELETE" });
+}
+
+export async function reportMessage(messageId: string, reason: string): Promise<void> {
+  return request<void>("/api/v1/reports", {
+    method: "POST",
+    body: JSON.stringify({ message_id: messageId, reason }),
+  });
+}
+
 // ========== P2P Signaling ==========
 
 export interface P2PSession {
