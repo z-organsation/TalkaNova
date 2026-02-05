@@ -1,0 +1,285 @@
+<!-- Fichier: index_auto.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Auto-Discovery</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .panel { background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2, h3 { margin-bottom: 15px; color: #333; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .online { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .offline { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .peer { display: inline-block; padding: 5px 10px; margin: 5px; background: #e9ecef; border-radius: 5px; }
+        .peer.online { background: #cce5ff; }
+        button { padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .messages { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; margin: 15px 0; }
+        .message { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .own { background: #d1ecf1; margin-left: 20%; }
+        .other { background: #f8f9fa; margin-right: 20%; }
+        .input-group { display: flex; margin-top: 15px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-right: 10px; }
+        .log { font-family: monospace; font-size: 12px; background: #333; color: #fff; padding: 10px; border-radius: 5px; margin-top: 10px; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel">
+            <h1>💬 Chat P2P avec Découverte Automatique</h1>
+            <div id="myStatus" class="status"></div>
+            
+            <h3>🔍 Pairs Découverts</h3>
+            <div id="peersList"></div>
+            
+            <div style="margin-top: 15px;">
+                <button onclick="discoverPeers()">🔍 Découvrir les pairs</button>
+                <button onclick="testConnections()">🧪 Tester les connexions</button>
+                <button onclick="viewHealth()">📊 Voir état du serveur</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>💭 Messages</h2>
+            <div id="messages" class="messages">
+                <!-- Messages apparaîtront ici -->
+            </div>
+            
+            <div class="input-group">
+                <input type="text" id="messageInput" placeholder="Tapez votre message..." disabled>
+                <button id="sendButton" onclick="sendMessage()" disabled>Envoyer</button>
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <button onclick="loadMessages()">🔄 Actualiser les messages</button>
+                <button onclick="clearMessages()">🗑️ Effacer localement</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h3>📝 Logs</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        const SERVER_URL = 'http://localhost:5000';
+        let myInfo = {};
+        let peers = [];
+        let isConnected = false;
+        let pollInterval;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#339af0';
+            logDiv.innerHTML = `<span style="color: ${color}">[${timestamp}] ${message}</span><br>` + logDiv.innerHTML;
+        }
+        
+        async function discoverPeers() {
+            log('Démarrage de la découverte...');
+            try {
+                const response = await fetch(SERVER_URL + '/api/discover');
+                const data = await response.json();
+                
+                log(`✅ Découverte terminée: ${data.count} pair(s) trouvé(s)`);
+                updatePeersList();
+            } catch (error) {
+                log(`❌ Erreur découverte: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testConnections() {
+            log('Test des connexions...');
+            try {
+                const response = await fetch(SERVER_URL + '/api/test-connection');
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('myStatus');
+                if (data.status === 'connected') {
+                    isConnected = true;
+                    statusDiv.className = 'status online';
+                    statusDiv.innerHTML = `✅ Connecté à ${data.connected_peers.length} pair(s) sur ${data.total_peers_found}`;
+                    
+                    data.connected_peers.forEach(peer => {
+                        log(`✅ Connecté à ${peer.info.name} (${peer.ip})`, 'success');
+                    });
+                    
+                    // Activer l'envoi de messages
+                    document.getElementById('messageInput').disabled = false;
+                    document.getElementById('sendButton').disabled = false;
+                } else {
+                    isConnected = false;
+                    statusDiv.className = 'status offline';
+                    statusDiv.innerHTML = `❌ Déconnecté - ${data.total_peers_found} pair(s) détecté(s) mais aucun connecté`;
+                    log('⚠️ Aucun pair connecté', 'error');
+                    
+                    // Désactiver l'envoi de messages
+                    document.getElementById('messageInput').disabled = true;
+                    document.getElementById('sendButton').disabled = true;
+                }
+            } catch (error) {
+                log(`❌ Erreur test connexion: ${error.message}`, 'error');
+            }
+        }
+        
+        async function updatePeersList() {
+            try {
+                const response = await fetch(SERVER_URL + '/api/health');
+                const data = await response.json();
+                
+                myInfo = data;
+                peers = data.peer_ips || [];
+                
+                const peersDiv = document.getElementById('peersList');
+                if (peers.length === 0) {
+                    peersDiv.innerHTML = '<p>Aucun pair découvert</p>';
+                } else {
+                    let html = '';
+                    peers.forEach(ip => {
+                        const status = data.connection_status && data.connection_status[ip] ? 'online' : '';
+                        html += `<span class="peer ${status}">${ip}</span>`;
+                    });
+                    peersDiv.innerHTML = html;
+                }
+                
+                // Mettre à jour le statut
+                document.getElementById('myStatus').innerHTML = `
+                    <strong>${data.name}</strong> | IP: ${data.my_ip || 'Non connecté'} | 
+                    Messages: ${data.message_count} | Pairs: ${peers.length}
+                `;
+                
+            } catch (error) {
+                log(`Erreur mise à jour pairs: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadMessages() {
+            try {
+                const response = await fetch(SERVER_URL + '/api/messages');
+                const data = await response.json();
+                
+                const messagesDiv = document.getElementById('messages');
+                messagesDiv.innerHTML = '';
+                
+                if (data.messages.length === 0) {
+                    messagesDiv.innerHTML = '<p style="text-align: center; color: #999;">Aucun message</p>';
+                    return;
+                }
+                
+                // Trier par timestamp
+                data.messages.sort((a, b) => a.timestamp - b.timestamp);
+                
+                data.messages.forEach(msg => {
+                    const isOwn = msg.sender === myInfo.name;
+                    const time = new Date(msg.timestamp * 1000).toLocaleTimeString();
+                    
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+                    msgDiv.innerHTML = `
+                        <strong>${msg.sender}</strong> <small>(${time})</small><br>
+                        ${msg.text}
+                        ${msg.source_ip ? `<br><small>IP: ${msg.source_ip}</small>` : ''}
+                    `;
+                    
+                    messagesDiv.appendChild(msgDiv);
+                });
+                
+                // Scroll vers le bas
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                
+            } catch (error) {
+                log(`Erreur chargement messages: ${error.message}`, 'error');
+            }
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || !isConnected) return;
+            
+            input.value = '';
+            log(`Envoi: "${message}"`);
+            
+            try {
+                const response = await fetch(SERVER_URL + '/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: message })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    log(`✅ Message envoyé à ${data.delivered_to.length} pair(s)`, 'success');
+                    if (data.failed_to.length > 0) {
+                        log(`⚠️ Échec pour: ${data.failed_to.join(', ')}`, 'error');
+                    }
+                }
+                
+                // Recharger les messages
+                setTimeout(loadMessages, 500);
+                
+            } catch (error) {
+                log(`❌ Erreur envoi: ${error.message}`, 'error');
+            }
+        }
+        
+        async function viewHealth() {
+            try {
+                const response = await fetch(SERVER_URL + '/api/health');
+                const data = await response.json();
+                
+                log('📊 État du serveur:', 'info');
+                log(`  Nom: ${data.name}`, 'info');
+                log(`  IP: ${data.my_ip}`, 'info');
+                log(`  Pairs: ${data.peer_ips?.join(', ') || 'aucun'}`, 'info');
+                log(`  Messages: ${data.message_count}`, 'info');
+                log(`  Dernière découverte: ${data.last_discovery || 'jamais'}`, 'info');
+                
+            } catch (error) {
+                log(`Erreur health check: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearMessages() {
+            if (confirm('Effacer les messages localement?')) {
+                log('Messages effacés localement (recharger la page)');
+                document.getElementById('messages').innerHTML = '';
+            }
+        }
+        
+        // Initialisation
+        window.onload = function() {
+            log('Initialisation du chat...');
+            
+            // Mettre à jour toutes les 5 secondes
+            pollInterval = setInterval(() => {
+                updatePeersList();
+                loadMessages();
+            }, 5000);
+            
+            // Initial load
+            updatePeersList();
+            loadMessages();
+            testConnections();
+            
+            // Permettre Enter pour envoyer
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        };
+        
+        // Nettoyage
+        window.onbeforeunload = function() {
+            clearInterval(pollInterval);
+        };
+    </script>
+</body>
+</html>
