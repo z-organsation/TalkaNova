@@ -75,10 +75,74 @@ export function decrypt(
   return new TextDecoder().decode(plaintext);
 }
 
+// ========== Room Symmetric Encryption (E2EE) ==========
+
 /**
- * For room demo: "encrypt" as base64(plaintext) so server stores opaque blob.
- * Not real E2EE; use only for demo. DMs use encrypt/decrypt above.
+ * Derive a 32-byte key from the room code using PBKDF2 (Web Crypto API).
+ * Salt is constant "talkanova_room_salt" for simplicity in this demo,
+ * but ideally should be unique per room (and stored/shared).
  */
+export async function deriveRoomKey(roomCode: string): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey(
+    "raw",
+    enc.encode(roomCode),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits", "deriveKey"]
+  );
+
+  const keyBuffer = await window.crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: enc.encode("talkanova_room_salt"),
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256 // 32 bytes * 8 bits
+  );
+
+  return new Uint8Array(keyBuffer);
+}
+
+/**
+ * Encrypt message using XSalsa20-Poly1305 (SecretBox).
+ * Returns base64(nonce || ciphertext).
+ */
+export function encryptRoomMessage(plaintext: string, key: Uint8Array): string {
+  const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+  const message = new TextEncoder().encode(plaintext);
+  const box = nacl.secretbox(message, nonce, key);
+
+  const fullMessage = new Uint8Array(nonce.length + box.length);
+  fullMessage.set(nonce);
+  fullMessage.set(box, nonce.length);
+
+  return encodeBase64(fullMessage);
+}
+
+/**
+ * Decrypt message using XSalsa20-Poly1305 (SecretBox).
+ * Returns plaintext or null if decryption fails (e.g. wrong room code).
+ */
+export function decryptRoomMessage(ciphertextB64: string, key: Uint8Array): string | null {
+  try {
+    const messageWithNonce = decodeBase64(ciphertextB64);
+    const nonce = messageWithNonce.slice(0, nacl.secretbox.nonceLength);
+    const box = messageWithNonce.slice(nacl.secretbox.nonceLength);
+
+    const decrypted = nacl.secretbox.open(box, nonce, key);
+
+    if (!decrypted) return null; // Decryption failed
+
+    return new TextDecoder().decode(decrypted);
+  } catch (e) {
+    return null;
+  }
+}
+
+// Keeping these for fallbacks if needed, but they are DEPRECATED
 export function roomOpaqueEncode(plaintext: string): string {
   return encodeBase64(new TextEncoder().encode(plaintext));
 }

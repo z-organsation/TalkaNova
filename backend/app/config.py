@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     bcrypt_rounds: int = 12
 
     # CORS (comma-separated origins; * for dev only)
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 
     # Database
     database_url: str = Field(
