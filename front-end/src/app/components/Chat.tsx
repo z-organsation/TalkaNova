@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-
 import Image from "next/image";
+import Link from "next/link";
+
 /* 
  * TalkaNova Core Chat Component
  * Integrates Centralized WebSocket (Rooms) and P2P Signaling (Tailscale).
@@ -27,7 +28,6 @@ import {
 } from "../lib/api";
 import { roomOpaqueEncode, roomOpaqueDecode } from "../lib/crypto";
 import P2PChat from "./P2PChat";
-
 
 function useIsPc() {
   const [isPc, setIsPc] = useState(false);
@@ -63,6 +63,7 @@ export default function Chat() {
   const [usersOnline, setUsersOnline] = useState<string[]>([]);
   const [showMembers, setShowMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sidebarTab, setSidebarTab] = useState<"chats" | "members" | "account" | "settings">("chats");
   const wsRef = useRef<WebSocket | null>(null);
 
   /**
@@ -70,22 +71,10 @@ export default function Chat() {
    * Automatically handles Guest Login and Identity Persistence.
    */
 
-
-  // LoginModal import moved to top
-
-  // ... inside Chat component ...
-
-
-  // ... inside Chat component ...
-
-  // const [showNamePrompt, setShowNamePrompt] = useState(false); // Removed
-  // const [nameInput, setNameInput] = useState(""); // Removed
-
   const loadInitialData = useCallback(() => {
     getRooms().then(async (rs) => {
       let general = rs.find(r => r.name === "General");
       if (!general) {
-        // Create General room if it doesn't exist
         try {
           general = await apiCreateRoom("General", "public");
           rs.push(general);
@@ -100,27 +89,19 @@ export default function Chat() {
         setActiveChat({ id: rs[0].id, type: "room", name: rs[0].name, roomId: rs[0].id });
       }
     }).catch(() => { });
-    // No user list in no-auth mode
+
     getPendingP2PSessions().then(setPendingP2P).catch(() => { });
   }, [activeChat]);
 
   useEffect(() => {
-    // Check for existing identity
     const identity = getIdentity();
     if (!identity.user_name) {
-      // Auto-set guest name instead of prompting
       const defaultName = `Guest-${identity.user_id.slice(0, 4)}`;
       setUserName(defaultName);
     }
     setProfile(getLocalProfile());
     loadInitialData();
   }, [loadInitialData]);
-
-  // handleNameSubmit removed
-
-
-  // But handleNameSubmit needs it.
-  // We add dependency below.
 
   useEffect(() => {
     if (!profile) return;
@@ -137,13 +118,12 @@ export default function Chat() {
       return;
     }
 
-    // P2P Chat is handled by separate component
     if (activeChat.type === "p2p") return;
 
-    // DM not supported in no-auth mode, only rooms and P2P
     if (activeChat.type === "dm") {
       return;
     }
+    
     if (activeChat.type === "room" && activeChat.roomId) {
       setMessages([]);
       if (wsRef.current) wsRef.current.close();
@@ -168,7 +148,6 @@ export default function Chat() {
               ]);
             }
             if (data.type === "room_users" && data.users) {
-              // Initial user list for presence
               setUsersOnline(data.users.map((u: { user_id: string }) => u.user_id));
             }
             if (data.type === "presence" && data.event === "join") {
@@ -213,7 +192,6 @@ export default function Chat() {
       const file = e.target.files[0];
       try {
         const res = await uploadFile(file);
-        // Send as special formatted message
         const content = `[FILE]:${res.id}:${res.filename}:${res.content_type}`;
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           wsRef.current.send(
@@ -241,10 +219,6 @@ export default function Chat() {
     return msg;
   };
 
-  const ShowThem = () => {
-    setShowMembers((prev) => !prev);
-  };
-
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomCode, setNewRoomCode] = useState("");
 
@@ -259,13 +233,6 @@ export default function Chat() {
     } catch { }
   };
 
-
-
-  // openDm removed - DMs not supported in no-auth mode
-
-  // startP2P removed as it was unused and implemented in sidebar
-
-
   const handleAcceptP2P = async (sessionId: string) => {
     const ip = prompt("Enter your Tailscale IP (e.g. 100.x.x.x):");
     if (!ip) return;
@@ -274,18 +241,16 @@ export default function Chat() {
       setActiveChat({ id: sessionId, type: "p2p", name: "P2P Chat", p2pSessionId: sessionId });
       setPendingP2P(prev => prev.filter(p => p.session_id !== sessionId));
     } catch (e: unknown) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       alert((e as any).message || "Error accepting P2P");
     }
   };
 
-  // Render Sidebar Content (Shared)
-  const SidebarContent = () => (
-    <div className="all_chats relative flex-1 overflow-y-auto">
-      {/* P2P Requests */}
+  // Sidebar Content Components
+  const ChatsSidebar = () => (
+    <div className="all_chats flex-1 overflow-y-auto">
       {pendingP2P.length > 0 && (
         <>
-          <p className="text-green-400 text-xs font-bold p-1 ml-2">P2P Requests</p>
+          <p className="text-green-400 text-xs font-bold p-2">P2P Requests</p>
           {pendingP2P.map((s) => (
             <div key={s.session_id} className="room w-full py-2 border-b border-[#33A1E040] flex items-center justify-between px-2">
               <span className="text-white text-sm">Session {s.session_id.slice(-4)}</span>
@@ -295,7 +260,7 @@ export default function Chat() {
         </>
       )}
 
-      <p className="text-[#33A1E0] text-xs font-bold p-1 ml-2">Rooms</p>
+      <p className="text-[#33A1E0] text-xs font-bold p-2">Rooms</p>
       {rooms
         .filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()))
         .map((room: Room) => (
@@ -312,14 +277,22 @@ export default function Chat() {
             <p className="text-[#33A1E0] text-sm sm:text-lg lg:text-xl font-bold p-1 ml-2"># {room.name}</p>
           </div>
         ))}
+    </div>
+  );
 
-      {/* Online Users Section */}
-      <p className="text-[#33A1E0] text-xs font-bold p-1 ml-2 mt-4">Online Users ({usersOnline.length})</p>
+  const MembersSidebar = () => (
+    <div className="members_list flex-1 overflow-y-auto">
+      <p className="text-[#33A1E0] text-xs font-bold p-2">Online Users ({usersOnline.length})</p>
       {usersOnline
         .filter(u => u !== profile?.id && u.toLowerCase().includes(searchQuery.toLowerCase()))
         .map(userId => (
-          <div key={userId} className="room w-full py-2 border-b border-[#33A1E040] flex items-center justify-between px-2">
-            <p className="text-white text-sm truncate w-[60%]">Use {userId.slice(0, 8)}</p>
+          <div key={userId} className="user-item w-full py-2 border-b border-[#33A1E040] flex items-center justify-between px-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center">
+                <span className="text-white text-xs">{userId.slice(0, 2).toUpperCase()}</span>
+              </div>
+              <span className="text-white text-sm">User {userId.slice(0, 8)}</span>
+            </div>
             <button
               onClick={async () => {
                 try {
@@ -333,25 +306,158 @@ export default function Chat() {
             </button>
           </div>
         ))}
-      {/* P2P Pending Section */}
-      <p className="text-[#33A1E0] text-xs font-bold p-1 ml-2 mt-2">P2P Requests</p>
-      {pendingP2P.map((p) => (
-        <div
-          key={p.session_id}
-          className="room w-full py-2 border-b border-[#33A1E040] flex items-center justify-between pr-2"
-        >
-          <p className="text-[#33A1E0] text-sm p-1 ml-2">{p.initiator_name || "Unknown"}</p>
-          <button
-            onClick={() => handleAcceptP2P(p.session_id)}
-            className="bg-green-600 text-white text-xs px-2 py-1 rounded hover:bg-green-500"
-          >
-            Accept
-          </button>
-        </div>
-      ))}
     </div>
   );
 
+  const AccountSidebar = () => (
+    <div className="account_settings flex-1 overflow-y-auto p-2">
+      <div className="profile-section mb-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center">
+            <span className="text-white text-lg">{profile?.user_name?.charAt(0)?.toUpperCase() || 'U'}</span>
+          </div>
+          <div>
+            <p className="text-white font-medium">{profile?.user_name || 'Guest User'}</p>
+            <p className="text-gray-400 text-sm">{profile?.email || 'guest@example.com'}</p>
+          </div>
+        </div>
+        
+        <button 
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded mb-2 text-sm"
+          onClick={() => alert('Edit profile feature coming soon')}
+        >
+          Edit Profile
+        </button>
+        
+        <button 
+          className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-sm"
+          onClick={() => alert('Change password feature coming soon')}
+        >
+          Change Password
+        </button>
+      </div>
+
+      <div className="divider border-t border-gray-700 my-4"></div>
+
+      <div className="preferences-section">
+        <h3 className="text-[#33A1E0] text-sm font-bold mb-2">Preferences</h3>
+        <div className="space-y-2">
+          <label className="flex items-center justify-between">
+            <span className="text-white text-sm">Dark Mode</span>
+            <input type="checkbox" className="rounded" defaultChecked />
+          </label>
+          <label className="flex items-center justify-between">
+            <span className="text-white text-sm">Notifications</span>
+            <input type="checkbox" className="rounded" defaultChecked />
+          </label>
+          <label className="flex items-center justify-between">
+            <span className="text-white text-sm">Email Updates</span>
+            <input type="checkbox" className="rounded" />
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+
+  const SettingsSidebar = () => (
+    <div className="settings_panel flex-1 overflow-y-auto p-2">
+      <h3 className="text-[#33A1E0] text-sm font-bold mb-3">Settings</h3>
+      
+      <div className="setting-group mb-4">
+        <h4 className="text-white text-sm font-medium mb-2">Appearance</h4>
+        <div className="space-y-2">
+          <button className="w-full text-left text-white text-sm p-2 hover:bg-gray-700 rounded">
+            Theme Settings
+          </button>
+          <button className="w-full text-left text-white text-sm p-2 hover:bg-gray-700 rounded">
+            Font Size
+          </button>
+        </div>
+      </div>
+
+      <div className="setting-group mb-4">
+        <h4 className="text-white text-sm font-medium mb-2">Privacy</h4>
+        <div className="space-y-2">
+          <button className="w-full text-left text-white text-sm p-2 hover:bg-gray-700 rounded">
+            Privacy Settings
+          </button>
+          <button className="w-full text-left text-white text-sm p-2 hover:bg-gray-700 rounded">
+            Blocked Users
+          </button>
+        </div>
+      </div>
+
+      <div className="setting-group mb-4">
+        <h4 className="text-white text-sm font-medium mb-2">Help & Support</h4>
+        <div className="space-y-2">
+          <Link href="/help" className="block text-left text-white text-sm p-2 hover:bg-gray-700 rounded">
+            Help Center
+          </Link>
+          <button className="w-full text-left text-white text-sm p-2 hover:bg-gray-700 rounded">
+            Contact Support
+          </button>
+        </div>
+      </div>
+
+      <div className="divider border-t border-gray-700 my-4"></div>
+
+      <button 
+        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded text-sm"
+        onClick={() => {
+          if (confirm("Are you sure you want to logout?")) {
+            localStorage.clear();
+            window.location.href = '/';
+          }
+        }}
+      >
+        Logout
+      </button>
+    </div>
+  );
+
+  const SidebarContent = () => {
+    switch (sidebarTab) {
+      case "chats":
+        return <ChatsSidebar />;
+      case "members":
+        return <MembersSidebar />;
+      case "account":
+        return <AccountSidebar />;
+      case "settings":
+        return <SettingsSidebar />;
+      default:
+        return <ChatsSidebar />;
+    }
+  };
+
+  const SidebarTabs = () => (
+    <div className="sidebar_tabs flex border-b border-[#33A1E040]">
+      <button
+        className={`tab flex-1 py-2 text-center text-sm ${sidebarTab === "chats" ? "text-[#33A1E0] border-b-2 border-[#33A1E0]" : "text-gray-400"}`}
+        onClick={() => setSidebarTab("chats")}
+      >
+        Chats
+      </button>
+      <button
+        className={`tab flex-1 py-2 text-center text-sm ${sidebarTab === "members" ? "text-[#33A1E0] border-b-2 border-[#33A1E0]" : "text-gray-400"}`}
+        onClick={() => setSidebarTab("members")}
+      >
+        Members
+      </button>
+      <button
+        className={`tab flex-1 py-2 text-center text-sm ${sidebarTab === "account" ? "text-[#33A1E0] border-b-2 border-[#33A1E0]" : "text-gray-400"}`}
+        onClick={() => setSidebarTab("account")}
+      >
+        Account
+      </button>
+      <button
+        className={`tab flex-1 py-2 text-center text-sm ${sidebarTab === "settings" ? "text-[#33A1E0] border-b-2 border-[#33A1E0]" : "text-gray-400"}`}
+        onClick={() => setSidebarTab("settings")}
+      >
+        ⚙️
+      </button>
+    </div>
+  );
 
   if (!isPc) {
     return (
@@ -373,13 +479,13 @@ export default function Chat() {
               />
             </div>
 
+            <SidebarTabs />
             <SidebarContent />
 
-            <div className="parameters w-full h-[10%] border-1 border-[#33A1E040] flex flex-end items-center justify-center ">
-              <div className="profile w-[20%] h-[90%] bg-center bg-cover bg-no-repeat rounded-full"
+            <div className="parameters w-full h-[10%] border-1 border-[#33A1E040] flex flex-end items-center justify-center p-2">
+              <div className="profile w-[30px] h-[30px] bg-center bg-cover bg-no-repeat rounded-full"
                 style={{ backgroundImage: `url(${profile?.pfp_url || '/profile.svg'})` }}></div>
-
-              <div className="infos h-[90%] w-[80%] flex flex-end flex-col p-1">
+              <div className="infos h-[90%] w-[80%] flex flex-end flex-col ml-2">
                 <p className="name text-[#33A1E0] text-sm w-full h-[40%]">
                   {profile?.user_name}
                 </p>
@@ -448,7 +554,8 @@ export default function Chat() {
                     <div className="flex justify-between items-center mb-2">
                       <button onClick={() => setShowMembers(false)} className="text-white text-lg">✕</button>
                     </div>
-                    {/* ... (Users lists) ... */}
+                    <SidebarTabs />
+                    <SidebarContent />
                   </div>
                   <div className="flex-1" onClick={() => setShowMembers(false)} />
                 </div>
@@ -460,18 +567,13 @@ export default function Chat() {
     );
   }
 
-
-  // Modal removed
-
-
   return (
     <div className="page h-full w-full grid grid-rows-10 transition-all duration-300 grid-cols-5">
-      <div className="search col-start-1 row-start-1 border-1 border-[#33A1E040] flex items-center justify-center">
-        {/* Search bar ... */}
-        <div className="search_bar w-[90%] h-[75%] flex items-center justify-center border-1 border-[rgba(255,255,255,0.3)] rounded-[60px] bg-[#FFFFFF30] font-sans shadow-[0_0_15px_#33A1E0]">
+      <div className="search col-start-1 row-start-1 border-1 border-[#33A1E040] flex items-center justify-center p-2">
+        <div className="search_bar w-full h-[75%] flex items-center justify-center border-1 border-[rgba(255,255,255,0.3)] rounded-[60px] bg-[#FFFFFF30] font-sans shadow-[0_0_15px_#33A1E0]">
           <input
             type="text"
-            placeholder="Search Rooms..."
+            placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-full border-0 bg-transparent text-[#FFFFFF60] p-2 focus:outline-none"
@@ -480,18 +582,18 @@ export default function Chat() {
       </div>
 
       <div className="massage flex flex-col font-sans border-1 border-[#33A1E040] border-t-0 bg-transparent row-span-9 col-start-1 row-start-2">
+        <SidebarTabs />
         <SidebarContent />
-        {/* Create room inputs ... */}
-        <div className="creat_chat p-1 border-t-1 border-[#33A1E040] flex flex-col justify-center items-center gap-2">
+        
+        <div className="creat_chat p-2 border-t-1 border-[#33A1E040] flex flex-col justify-center items-center gap-2">
           <input type="text" placeholder="Room Name" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} className="name h-[30%] w-[90%] p-1 text-sm rounded bg-[#154D71] text-white outline-none" />
           <input type="text" placeholder="Code" value={newRoomCode} onChange={(e) => setNewRoomCode(e.target.value)} className="code h-[30%] w-[90%] p-1 text-sm rounded bg-[#154D71] text-white outline-none" />
-          <button onClick={createRoom} className="h-[30%] w-[90%] bg-[#33A1E0] text-white py-1 px-2 rounded hover:bg-[#1e7bbf] text-sm flex justify-center items-center">➕</button>
+          <button onClick={createRoom} className="h-[30%] w-[90%] bg-[#33A1E0] text-white py-1 px-2 rounded hover:bg-[#1e7bbf] text-sm flex justify-center items-center">➕ Create Room</button>
         </div>
 
-        <div className="parameters w-full h-[10%] border-t-1 border-[#33A1E040] flex flex-end items-center justify-center ">
-          {/* Profile footer ... */}
+        <div className="parameters w-full h-[10%] border-t-1 border-[#33A1E040] flex items-center justify-center p-2">
           <div className="profile w-[30px] h-[30px] bg-center bg-cover rounded-full" style={{ backgroundImage: `url(${profile?.pfp_url || '/profile.svg'})` }}></div>
-          <div className="infos h-[90%] w-[77%] items-center p-1">
+          <div className="infos h-[90%] w-[77%] items-center ml-2">
             <p className="name text-[#33A1E0] text-sm">{profile?.user_name}</p>
             <button
               className="text-white text-xs hover:text-red-400"
@@ -501,14 +603,14 @@ export default function Chat() {
                   location.reload();
                 }
               }}
-            >Reset Identity</button>
+            >Logout</button>
           </div>
         </div>
       </div>
 
       <div className={`bar row-start-1 border-1 border-[#33A1E040] border-l-0 bg-transparent flex flex-row items-center justify-between ${showMembers ? "col-span-3 col-start-2" : "col-span-4 col-start-2"}`}>
         <h1 className="h-full flex flex-end justify-center items-center text-4xl text-[#33A1E0] ml-2">TalkaNova</h1>
-        <button onClick={ShowThem} className="members w-12 h-12 bg-no-repeat bg-[url('/members.svg')] bg-center bg-contain cursor-pointer flex justify-end items-center mr-2"></button>
+        <button onClick={() => setShowMembers(!showMembers)} className="members w-12 h-12 bg-no-repeat bg-[url('/members.svg')] bg-center bg-contain cursor-pointer flex justify-end items-center mr-2"></button>
       </div>
 
       <div className={`chat flex flex-col bg-transparent row-span-9 row-start-2 ${showMembers ? "col-span-3 col-start-2" : "col-span-4 col-start-2"}`}>
@@ -523,11 +625,9 @@ export default function Chat() {
             <div className="msgs p-3 flex-1 overflow-y-auto">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex items-start gap-2 mb-2 group ${msg.id === profile?.id ? "flex-row-reverse" : "flex-row"}`}>
-                  {/* Msg */}
                   <div className={`px-3 py-1 rounded-2xl max-w-[60%] text-white relative ${msg.id === profile?.id ? "bg-blue-600" : "bg-gray-700"}`}>
                     {renderMessageContent(msg.message)}
                   </div>
-                  {/* Actions */}
                   <div className="opacity-0 group-hover:opacity-100 flex flex-col gap-1">
                     {msg.id === profile?.id ? (
                       <button
@@ -547,8 +647,7 @@ export default function Chat() {
               ))}
               <div ref={messagesEndRef} />
             </div>
-            <div className="send_part w-full h-[10%] flex items-center justify-center font-sans">
-              {/* ... input ... */}
+            <div className="send_part w-full h-[10%] flex items-center justify-center font-sans p-2">
               <div className="send_bar h-[90%] w-[99%] flex items-center justify-center border-1 border-[rgba(255,255,255,0.3)] rounded-[60px] bg-[rgba(255,255,255,0.06)] shadow-[0_0_15px_#33A1E0] p-2">
                 <input
                   type="file"
@@ -565,7 +664,7 @@ export default function Chat() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   placeholder="Send message..."
-                  className="w-full h-full text-lg bg-transparent text-white focus:outline-none ml-3"
+                  className="w-full h-full text-lg bg-transparent text-white focus:outline-none ml-3 resize-none"
                 ></textarea>
                 <button onClick={sendMessage} className="send w-[5%] h-full bg-center bg-contain bg-no-repeat bg-[url('/send.svg')]"></button>
               </div>
@@ -576,12 +675,13 @@ export default function Chat() {
 
       {showMembers && (
         <div className="members col-start-5 row-start-1 row-span-10 border-1 border-[#33A1E040] flex flex-col p-2">
-          {/* room members list */}
-          <p className="text-green-400">Online Users:</p>
-          {usersOnline.map(id => <div key={id} className="text-[#33A1E0] text-sm">User {id.slice(0, 8)}...</div>)}
+          <div className="mb-2">
+            <button onClick={() => setShowMembers(false)} className="text-white text-lg float-right">✕</button>
+          </div>
+          <SidebarTabs />
+          <SidebarContent />
         </div>
       )}
     </div>
   );
 }
-
