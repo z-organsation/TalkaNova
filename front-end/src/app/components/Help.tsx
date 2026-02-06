@@ -14,7 +14,8 @@ export default function Help() {
     setLoading(true);
     
     try {
-      const response = await fetch("/api/help", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/v1/help`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -23,13 +24,13 @@ export default function Help() {
       });
 
       if (response.ok) {
-        alert("Message sent successfully!");
+        alert("Message sent successfully! We'll get back to you soon.");
         setName("");
         setEmail("");
         setMessage("");
       } else {
         const error = await response.json();
-        alert(error.error || "Failed to send message");
+        alert(error.detail || error.error || "Failed to send message");
       }
     } catch (error) {
       alert("Network error. Please try again.");

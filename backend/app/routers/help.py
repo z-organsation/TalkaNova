@@ -19,7 +19,7 @@ router = APIRouter(prefix="/help", tags=["help"])
 class HelpRequest(BaseModel):
     name: str
     email: EmailStr
-    subject: str
+    subject: str = "Help Request"  # Optional, defaults to "Help Request"
     message: str
 
 

@@ -40,7 +40,7 @@ If you did not request this, ignore this email.
         port=settings.smtp_port,
         username=settings.smtp_user or None,
         password=settings.smtp_password or None,
-        use_tls=settings.smtp_port == 587,
+        start_tls=True,  # Use STARTTLS for port 587
     )
 
 
@@ -78,5 +78,5 @@ TalkaNova Help System
         port=settings.smtp_port,
         username=settings.smtp_user or None,
         password=settings.smtp_password or None,
-        use_tls=settings.smtp_port == 587,
+        start_tls=True,  # Use STARTTLS for port 587
     )
